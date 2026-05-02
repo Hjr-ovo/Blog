@@ -48,6 +48,20 @@ jobs:
       - name: Install theme dependencies
         run: cd themes/butterfly && npm install
 
+      - name: Install Butterfly plugins
+        run: |
+          npm install hexo-wordcount --save
+          npm install hexo-generator-search --save
+          npm install hexo-generator-feed --save
+          npm install hexo-generator-tag --save
+          npm install hexo-generator-category --save
+          npm install hexo-generator-archive --save
+          npm install hexo-generator-index --save
+          npm install hexo-generator-searchdb --save
+          npm install hexo-related-popular-posts --save
+          npm install sharejs --save
+          npm install @fancyapps/ui --save
+
       - name: Build Hexo
         run: npx hexo clean && npx hexo generate
 
