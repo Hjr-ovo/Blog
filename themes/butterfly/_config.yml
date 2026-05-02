@@ -16,7 +16,7 @@ search:
 
 # 头像
 avatar:
-  img: /images/avatar.png
+  img: /images/avatar.jpg
   effect: true
 
 # 副标题（打字机效果）
