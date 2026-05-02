@@ -87,3 +87,7 @@ aside:
       link: https://github.com/Hjr-ovo
       text: Follow Me
       icon: fab fa-github  
+
+# 文章页面包屑
+breadcrumb:
+  enable: true
