@@ -4,14 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'source/**'
-      - '_config.yml'
-      - 'themes/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'scaffolds/**'
-      - '.nojekyll'
   workflow_dispatch:
 
 permissions:
@@ -54,14 +46,19 @@ jobs:
           npm install hexo-wordcount --save
           npm install hexo-generator-search --save
           npm install hexo-generator-feed --save
-          npm install hexo-generator-tag --save
-          npm install hexo-generator-category --save
-          npm install hexo-generator-archive --save
-          npm install hexo-generator-index --save
-          npm install hexo-generator-searchdb --save
-          npm install hexo-related-popular-posts --save
-          npm install sharejs --save
-          npm install @fancyapps/ui --save
+
+      - name: Fix highlight.styl bug
+        run: |
+          HIGHLIGHT_FILE="themes/butterfly/source/css/_highlight/highlight.styl"
+          if [ -f "$HIGHLIGHT_FILE" ]; then
+            sed -i 's/\$highlight-tools\.bg\.color/\$highlight-tools-background/g' "$HIGHLIGHT_FILE"
+            sed -i 's/\$highlight-tools\.color/\$highlight-tools-color/g' "$HIGHLIGHT_FILE"
+            sed -i 's/\$highlight-gutter\.bg\.color/\$highlight-gutter-background/g' "$HIGHLIGHT_FILE"
+            sed -i 's/\$highlight-gutter\.color/\$highlight-gutter-color/g' "$HIGHLIGHT_FILE"
+            echo "Fixed highlight.styl"
+          else
+            echo "highlight.styl not found, skipping"
+          fi
 
       - name: Build Hexo
         run: npx hexo clean && npx hexo generate
