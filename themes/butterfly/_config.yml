@@ -78,3 +78,12 @@ lazyload:
 # 评论（暂时关闭）
 comments:
   use: false
+
+# Follow Me 按钮
+aside:
+  card_author:
+    button:
+      enable: true
+      link: https://github.com/Hjr-ovo
+      text: Follow Me
+      icon: fab fa-github  
