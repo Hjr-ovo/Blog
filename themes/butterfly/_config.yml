@@ -130,7 +130,7 @@ darkmode:
 
 # 字数统计
 wordcount:
-  enable: true
+  enable: false
   post_wordcount: true
   min2read: true
   total_wordcount: true
@@ -169,4 +169,5 @@ CDN:
 inject:
   head:
   footer:
+
 
