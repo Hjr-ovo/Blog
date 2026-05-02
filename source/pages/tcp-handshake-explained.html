@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TCP 三次握手 & 四次挥手 — 图文详解</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f7fb;
+    --bg-card: #ffffff;
+    --bg-card-alt: #f9fafb;
+    --fg: #1a1d23;
+    --fg-muted: #5f6672;
+    --accent-blue: #2563eb;
+    --accent-green: #16a34a;
+    --accent-orange: #d97706;
+    --accent-red: #dc2626;
+    --accent-purple: #7c3aed;
+    --accent-cyan: #0891b2;
+    --border: #e2e5ea;
+    --glow-blue: rgba(37,99,235,0.08);
+    --glow-green: rgba(22,163,74,0.08);
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.8;
+    overflow-x: hidden;
+  }
+
+  /* Background atmosphere */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(ellipse at 20% 20%, rgba(37,99,235,0.04) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(22,163,74,0.03) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(124,58,237,0.02) 0%, transparent 60%);
+    z-index: -1;
+    animation: bgDrift 20s ease-in-out infinite alternate;
+  }
+
+  @keyframes bgDrift {
+    0% { transform: translate(0, 0) rotate(0deg); }
+    100% { transform: translate(-2%, -1%) rotate(1deg); }
+  }
+
+  /* Subtle dot pattern */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='0.6' fill='rgba(0,0,0,0.04)'/%3E%3C/svg%3E");
+    background-size: 24px 24px;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 60px 24px 100px;
+  }
+
+  /* ===== HERO ===== */
+  .hero {
+    text-align: center;
+    padding: 80px 0 60px;
+    position: relative;
+  }
+
+  .hero-badge {
+    display: inline-block;
+    padding: 6px 18px;
+    border: 1px solid var(--accent-blue);
+    border-radius: 100px;
+    font-size: 13px;
+    color: var(--accent-blue);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+    background: var(--glow-blue);
+    animation: fadeSlideUp 0.8s ease-out;
+  }
+
+  .hero h1 {
+    font-size: clamp(36px, 6vw, 64px);
+    font-weight: 900;
+    line-height: 1.15;
+    margin-bottom: 20px;
+    animation: fadeSlideUp 0.8s ease-out 0.1s both;
+    color: var(--fg);
+  }
+
+  .hero h1 .highlight-blue {
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero h1 .highlight-green {
+    background: linear-gradient(135deg, var(--accent-green), var(--accent-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero p {
+    font-size: 18px;
+    color: var(--fg-muted);
+    max-width: 600px;
+    margin: 0 auto;
+    animation: fadeSlideUp 0.8s ease-out 0.2s both;
+  }
+
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ===== SECTION ===== */
+  .section {
+    margin-bottom: 80px;
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+
+  .section.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 36px;
+  }
+
+  .section-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+
+  .section-icon.blue { background: var(--glow-blue); border: 1px solid rgba(37,99,235,0.2); }
+  .section-icon.green { background: var(--glow-green); border: 1px solid rgba(22,163,74,0.2); }
+  .section-icon.orange { background: rgba(217,119,6,0.08); border: 1px solid rgba(217,119,6,0.2); }
+  .section-icon.purple { background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.2); }
+
+  .section-header h2 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--fg);
+  }
+
+  .section-header .subtitle {
+    font-size: 14px;
+    color: var(--fg-muted);
+    margin-top: 2px;
+  }
+
+  /* ===== CARD ===== */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    margin-bottom: 24px;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .card:hover {
+    border-color: rgba(37,99,235,0.3);
+    box-shadow: var(--shadow-md);
+  }
+
+  .card-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--fg);
+  }
+
+  .card-title .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .card p {
+    color: var(--fg-muted);
+    font-size: 15px;
+    line-height: 1.9;
+  }
+
+  /* ===== DIAGRAM CONTAINER ===== */
+  .diagram-wrapper {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px 24px;
+    margin-bottom: 32px;
+    overflow-x: auto;
+    box-shadow: var(--shadow-md);
+  }
+
+  .diagram-wrapper svg {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+  }
+
+  /* ===== STEP CARDS ===== */
+  .steps-grid {
+    display: grid;
+    gap: 16px;
+  }
+
+  .step-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 28px;
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .step-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 4px;
+    height: 100%;
+    border-radius: 4px 0 0 4px;
+  }
+
+  .step-card.blue::before { background: var(--accent-blue); }
+  .step-card.green::before { background: var(--accent-green); }
+  .step-card.orange::before { background: var(--accent-orange); }
+  .step-card.red::before { background: var(--accent-red); }
+  .step-card.purple::before { background: var(--accent-purple); }
+
+  .step-card:hover {
+    border-color: rgba(37,99,235,0.25);
+    transform: translateX(4px);
+    box-shadow: var(--shadow-md);
+  }
+
+  .step-num {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .step-num.blue { background: var(--glow-blue); color: var(--accent-blue); }
+  .step-num.green { background: var(--glow-green); color: var(--accent-green); }
+  .step-num.orange { background: rgba(217,119,6,0.08); color: var(--accent-orange); }
+  .step-num.red { background: rgba(220,38,38,0.08); color: var(--accent-red); }
+  .step-num.purple { background: rgba(124,58,237,0.08); color: var(--accent-purple); }
+
+  .step-content h4 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .step-content p {
+    color: var(--fg-muted);
+    font-size: 14px;
+    line-height: 1.8;
+  }
+
+  .step-content .packet-tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    margin-top: 8px;
+    font-weight: 600;
+  }
+
+  .packet-tag.syn { background: rgba(37,99,235,0.08); color: var(--accent-blue); border: 1px solid rgba(37,99,235,0.2); }
+  .packet-tag.synack { background: rgba(22,163,74,0.08); color: var(--accent-green); border: 1px solid rgba(22,163,74,0.2); }
+  .packet-tag.ack { background: rgba(217,119,6,0.08); color: var(--accent-orange); border: 1px solid rgba(217,119,6,0.2); }
+  .packet-tag.fin { background: rgba(220,38,38,0.08); color: var(--accent-red); border: 1px solid rgba(220,38,38,0.2); }
+
+  /* ===== ANALOGY BOX ===== */
+  .analogy-box {
+    background: linear-gradient(135deg, #f0f4ff, var(--bg-card));
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    margin: 32px 0;
+    position: relative;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .analogy-box::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(37,99,235,0.15), transparent, rgba(22,163,74,0.15));
+    z-index: -1;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    -webkit-mask-composite: xor;
+    padding: 1px;
+  }
+
+  .analogy-box h3 {
+    font-size: 18px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--fg);
+  }
+
+  .analogy-box p {
+    color: var(--fg-muted);
+    font-size: 15px;
+    line-height: 2;
+  }
+
+  .analogy-box .dialogue {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .dialogue-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .dialogue-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .dialogue-avatar.client { background: var(--glow-blue); }
+  .dialogue-avatar.server { background: var(--glow-green); }
+
+  .dialogue-bubble {
+    background: rgba(0,0,0,0.02);
+    border: 1px solid var(--border);
+    border-radius: 0 12px 12px 12px;
+    padding: 10px 16px;
+    font-size: 14px;
+    color: var(--fg);
+    line-height: 1.7;
+  }
+
+  .dialogue-bubble .label {
+    font-size: 12px;
+    color: var(--fg-muted);
+    margin-bottom: 2px;
+  }
+
+  /* ===== COMPARISON TABLE ===== */
+  .compare-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 24px 0;
+    font-size: 14px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .compare-table thead th {
+    background: var(--bg-card-alt);
+    padding: 14px 20px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--fg);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .compare-table tbody td {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    color: var(--fg-muted);
+    background: var(--bg-card);
+  }
+
+  .compare-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .compare-table tbody tr:hover {
+    background: rgba(37,99,235,0.03);
+  }
+
+  /* ===== KEY POINTS ===== */
+  .key-points {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+  }
+
+  .key-point {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    transition: all 0.3s;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .key-point:hover {
+    border-color: rgba(37,99,235,0.3);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .key-point .icon {
+    font-size: 28px;
+    margin-bottom: 12px;
+  }
+
+  .key-point h4 {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--fg);
+  }
+
+  .key-point p {
+    color: var(--fg-muted);
+    font-size: 13px;
+    line-height: 1.8;
+  }
+
+  /* ===== DIVIDER ===== */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 60px 0;
+  }
+
+  /* ===== STATE DIAGRAM ===== */
+  .state-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 24px 0;
+  }
+
+  .state-node {
+    padding: 8px 18px;
+    border-radius: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+
+  .state-arrow {
+    color: var(--fg-muted);
+    font-size: 18px;
+  }
+
+  /* ===== FOOTER ===== */
+  .footer {
+    text-align: center;
+    padding: 40px 0;
+    color: var(--fg-muted);
+    font-size: 13px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 640px) {
+    .container { padding: 30px 16px 60px; }
+    .hero { padding: 40px 0 30px; }
+    .card { padding: 20px; }
+    .step-card { padding: 18px; gap: 14px; }
+    .diagram-wrapper { padding: 20px 12px; }
+    .section-header h2 { font-size: 22px; }
+  }
+
+  /* ===== SVG ANIMATION ===== */
+  .arrow-animate {
+    stroke-dasharray: 8 4;
+    animation: dashFlow 1s linear infinite;
+  }
+
+  @keyframes dashFlow {
+    to { stroke-dashoffset: -12; }
+  }
+
+  .pulse-dot {
+    animation: pulseDot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulseDot {
+    0%, 100% { r: 5; opacity: 1; }
+    50% { r: 8; opacity: 0.6; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ===== HERO ===== -->
+  <div class="hero">
+    <div class="hero-badge">TCP/IP Protocol</div>
+    <h1><span class="highlight-blue">三次握手</span> & <span class="highlight-green">四次挥手</span></h1>
+    <p>用最直观的图文方式，帮你彻底搞懂 TCP 连接建立与断开的完整过程</p>
+  </div>
+
+  <!-- ===== SECTION 1: WHY ===== -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon purple">💡</div>
+      <div>
+        <h2>为什么需要握手和挥手？</h2>
+        <div class="subtitle">理解 TCP 可靠传输的基础</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:var(--accent-purple)"></span>TCP 是什么？</div>
+      <p>
+        TCP（Transmission Control Protocol，传输控制协议）是互联网中最核心的协议之一。它是一个<strong style="color:var(--fg)">面向连接的、可靠的</strong>传输层协议。
+        在发送数据之前，通信双方必须先建立连接；数据传输结束后，需要断开连接。这就是<strong style="color:var(--accent-blue)">三次握手</strong>和<strong style="color:var(--accent-green)">四次挥手</strong>的作用。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:var(--accent-orange)"></span>核心概念：序列号（Sequence Number）</div>
+      <p>
+        TCP 之所以"可靠"，关键在于每发送一个字节的数据，都会分配一个<strong style="color:var(--fg)">序列号（seq）</strong>。
+        接收方通过<strong style="color:var(--fg)">确认号（ack）</strong>告诉发送方："我已经收到了 seq=N 之前的所有数据，请从 seq=N+K 继续发送。"
+        握手和挥手的过程，本质上就是双方交换和确认序列号的过程。
+      </p>
+    </div>
+
+    <div class="key-points">
+      <div class="key-point">
+        <div class="icon">🤝</div>
+        <h4>三次握手</h4>
+        <p>建立连接，双方确认彼此的收发能力正常，并同步初始序列号</p>
+      </div>
+      <div class="key-point">
+        <div class="icon">👋</div>
+        <h4>四次挥手</h4>
+        <p>断开连接，双方各自确认数据传输完毕，安全关闭通信通道</p>
+      </div>
+      <div class="key-point">
+        <div class="icon">🔢</div>
+        <h4>序列号同步</h4>
+        <p>握手的核心目的是交换双方的初始序列号（ISN），为后续可靠传输奠定基础</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ===== SECTION 2: THREE-WAY HANDSHAKE ===== -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon blue">🤝</div>
+      <div>
+        <h2>三次握手（Three-Way Handshake）</h2>
+        <div class="subtitle">建立 TCP 连接的完整过程</div>
+      </div>
+    </div>
+
+    <!-- Diagram -->
+    <div class="diagram-wrapper">
+      <svg viewBox="0 0 700 420" width="700" height="420" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(0,0,0,0.04)" stroke-width="0.5"/>
+          </pattern>
+          <marker id="arrowBlue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#2563eb"/>
+          </marker>
+          <marker id="arrowGreen" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#16a34a"/>
+          </marker>
+          <marker id="arrowOrange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#d97706"/>
+          </marker>
+        </defs>
+        <rect width="700" height="420" fill="url(#grid)"/>
+
+        <text x="350" y="30" text-anchor="middle" fill="#9ca3af" font-size="13" font-family="'JetBrains Mono', monospace">TCP Three-Way Handshake</text>
+
+        <!-- Client column -->
+        <rect x="100" y="50" width="140" height="40" rx="10" fill="rgba(37,99,235,0.06)" stroke="rgba(37,99,235,0.2)" stroke-width="1"/>
+        <text x="170" y="75" text-anchor="middle" fill="#2563eb" font-size="15" font-weight="700" font-family="'Noto Sans SC', sans-serif">客户端 (Client)</text>
+
+        <!-- Server column -->
+        <rect x="460" y="50" width="140" height="40" rx="10" fill="rgba(22,163,74,0.06)" stroke="rgba(22,163,74,0.2)" stroke-width="1"/>
+        <text x="530" y="75" text-anchor="middle" fill="#16a34a" font-size="15" font-weight="700" font-family="'Noto Sans SC', sans-serif">服务器 (Server)</text>
+
+        <!-- Timelines -->
+        <line x1="170" y1="100" x2="170" y2="400" stroke="rgba(37,99,235,0.15)" stroke-width="2" stroke-dasharray="4 4"/>
+        <line x1="530" y1="100" x2="530" y2="400" stroke="rgba(22,163,74,0.15)" stroke-width="2" stroke-dasharray="4 4"/>
+
+        <!-- State labels - Client -->
+        <rect x="50" y="108" width="80" height="26" rx="6" fill="rgba(156,163,175,0.08)" stroke="rgba(156,163,175,0.2)" stroke-width="1"/>
+        <text x="90" y="126" text-anchor="middle" fill="#6b7280" font-size="11" font-family="'JetBrains Mono', monospace">CLOSED</text>
+
+        <rect x="50" y="188" width="80" height="26" rx="6" fill="rgba(37,99,235,0.06)" stroke="rgba(37,99,235,0.15)" stroke-width="1"/>
+        <text x="90" y="206" text-anchor="middle" fill="#2563eb" font-size="11" font-family="'JetBrains Mono', monospace">SYN_SENT</text>
+
+        <rect x="50" y="318" width="80" height="26" rx="6" fill="rgba(22,163,74,0.06)" stroke="rgba(22,163,74,0.15)" stroke-width="1"/>
+        <text x="90" y="336" text-anchor="middle" fill="#16a34a" font-size="11" font-family="'JetBrains Mono', monospace">ESTABLISHED</text>
+
+        <!-- State labels - Server -->
+        <rect x="570" y="108" width="80" height="26" rx="6" fill="rgba(217,119,6,0.06)" stroke="rgba(217,119,6,0.15)" stroke-width="1"/>
+        <text x="610" y="126" text-anchor="middle" fill="#d97706" font-size="11" font-family="'JetBrains Mono', monospace">LISTEN</text>
+
+        <rect x="570" y="228" width="80" height="26" rx="6" fill="rgba(217,119,6,0.06)" stroke="rgba(217,119,6,0.15)" stroke-width="1"/>
+        <text x="610" y="246" text-anchor="middle" fill="#d97706" font-size="11" font-family="'JetBrains Mono', monospace">SYN_RCVD</text>
+
+        <rect x="570" y="348" width="80" height="26" rx="6" fill="rgba(22,163,74,0.06)" stroke="rgba(22,163,74,0.15)" stroke-width="1"/>
+        <text x="610" y="366" text-anchor="middle" fill="#16a34a" font-size="11" font-family="'JetBrains Mono', monospace">ESTABLISHED</text>
+
+        <!-- Step 1: SYN -->
+        <line x1="185" y1="155" x2="515" y2="155" stroke="#2563eb" stroke-width="2" marker-end="url(#arrowBlue)" class="arrow-animate"/>
+        <rect x="280" y="132" width="140" height="36" rx="8" fill="rgba(37,99,235,0.06)" stroke="rgba(37,99,235,0.2)" stroke-width="1"/>
+        <text x="350" y="147" text-anchor="middle" fill="#2563eb" font-size="11" font-weight="600" font-family="'JetBrains Mono', monospace">SYN</text>
+        <text x="350" y="162" text-anchor="middle" fill="#6b7280" font-size="10" font-family="'JetBrains Mono', monospace">seq = x</text>
+        <circle cx="170" cy="155" r="5" fill="#2563eb" class="pulse-dot"/>
+
+        <text x="350" y="128" text-anchor="middle" fill="rgba(0,0,0,0.25)" font-size="11" font-weight="600">① 第一次握手</text>
+
+        <!-- Step 2: SYN+ACK -->
+        <line x1="515" y1="245" x2="185" y2="245" stroke="#16a34a" stroke-width="2" marker-end="url(#arrowGreen)" class="arrow-animate"/>
+        <rect x="268" y="222" width="164" height="36" rx="8" fill="rgba(22,163,74,0.06)" stroke="rgba(22,163,74,0.2)" stroke-width="1"/>
+        <text x="350" y="237" text-anchor="middle" fill="#16a34a" font-size="11" font-weight="600" font-family="'JetBrains Mono', monospace">SYN + ACK</text>
+        <text x="350" y="252" text-anchor="middle" fill="#6b7280" font-size="10" font-family="'JetBrains Mono', monospace">seq = y, ack = x+1</text>
+        <circle cx="530" cy="245" r="5" fill="#16a34a" class="pulse-dot"/>
+
+        <text x="350" y="218" text-anchor="middle" fill="rgba(0,0,0,0.25)" font-size="11" font-weight="600">② 第二次握手</text>
+
+        <!-- Step 3: ACK -->
+        <line x1="185" y1="335" x2="515" y2="335" stroke="#d97706" stroke-width="2" marker-end="url(#arrowOrange)" class="arrow-animate"/>
+        <rect x="280" y="312" width="140" height="36" rx="8" fill="rgba(217,119,6,0.06)" stroke="rgba(217,119,6,0.2)" stroke-width="1"/>
+        <text x="350" y="327" text-anchor="middle" fill="#d97706" font-size="11" font-weight="600" font-family="'JetBrains Mono', monospace">ACK</text>
+        <text x="350" y="342" text-anchor="middle" fill="#6b7280" font-size="10" font-family="'JetBrains Mono', monospace">seq = x+1, ack = y+1</text>
+        <circle cx="170" cy="335" r="5" fill="#d97706" class="pulse-dot"/>
+
+        <text x="350" y="308" text-anchor="middle" fill="rgba(0,0,0,0.25)" font-size="11" font-weight="600">③ 第三次握手</text>
+
+        <!-- Connection established indicator -->
+        <rect x="290" y="375" width="120" height="28" rx="8" fill="rgba(22,163,74,0.1)" stroke="rgba(22,163,74,0.25)" stroke-width="1"/>
+        <text x="350" y="394" text-anchor="middle" fill="#16a34a" font-size="12" font-weight="600">✓ 连接已建立</text>
+      </svg>
+    </div>
+
+    <!-- Step explanations -->
+    <div class="steps-grid">
+      <div class="step-card blue">
+        <div class="step-num blue">①</div>
+        <div class="step-content">
+          <h4 style="color:var(--accent-blue)">第一次握手：客户端发送 SYN</h4>
+          <p>
+            客户端想要建立连接，向服务器发送一个 <strong style="color:var(--fg)">SYN（同步）</strong>报文段。
+            报文中携带客户端的<strong style="color:var(--fg)">初始序列号 seq = x</strong>（随机生成）。
+            此时客户端进入 <code style="color:var(--accent-blue)">SYN_SENT</code> 状态，意思是"我发了同步请求，正在等回复"。
+          </p>
+          <span class="packet-tag syn">SYN = 1, seq = x</span>
+        </div>
+      </div>
+
+      <div class="step-card green">
+        <div class="step-num green">②</div>
+        <div class="step-content">
+          <h4 style="color:var(--accent-green)">第二次握手：服务器回复 SYN+ACK</h4>
+          <p>
+            服务器收到 SYN 后，同意建立连接，于是回复一个 <strong style="color:var(--fg)">SYN+ACK</strong> 报文段。
+            其中 <strong style="color:var(--fg)">SYN = 1</strong> 表示服务器也想同步自己的序列号，<strong style="color:var(--fg)">ACK = 1</strong> 表示确认收到了客户端的请求。
+            服务器携带自己的初始序列号 <strong style="color:var(--fg)">seq = y</strong>，确认号 <strong style="color:var(--fg)">ack = x+1</strong>（意思是"我期待你下一个发 x+1"）。
+            服务器进入 <code style="color:var(--accent-orange)">SYN_RCVD</code> 状态。
+          </p>
+          <span class="packet-tag synack">SYN = 1, ACK = 1, seq = y, ack = x+1</span>
+        </div>
+      </div>
+
+      <div class="step-card orange">
+        <div class="step-num orange">③</div>
+        <div class="step-content">
+          <h4 style="color:var(--accent-orange)">第三次握手：客户端发送 ACK</h4>
+          <p>
+            客户端收到服务器的 SYN+ACK 后，发送一个 <strong style="color:var(--fg)">ACK</strong> 报文段作为确认。
+            携带 <strong style="color:var(--fg)">seq = x+1</strong>（因为上一次发了 x，这次 +1），确认号 <strong style="color:var(--fg)">ack = y+1</strong>（告诉服务器"我收到了你的 y"）。
+            发送完毕后，客户端进入 <code style="color:var(--accent-green)">ESTABLISHED</code> 状态。服务器收到后也进入 <code style="color:var(--accent-green)">ESTABLISHED</code> 状态。
+            <strong style="color:var(--fg)">至此，连接正式建立！</strong>
+          </p>
+          <span class="packet-tag ack">ACK = 1, seq = x+1, ack = y+1</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analogy -->
+    <div class="analogy-box">
+      <h3>📞 生活类比：打电话</h3>
+      <p>想象你（客户端）给朋友（服务器）打电话：</p>
+      <div class="dialogue">
+        <div class="dialogue-item">
+          <div class="dialogue-avatar client">🧑</div>
+          <div class="dialogue-bubble">
+            <div class="label">你（客户端）</div>
+            "喂？你能听到我说话吗？" <span style="color:var(--accent-blue)">→ SYN</span>
+          </div>
+        </div>
+        <div class="dialogue-item">
+          <div class="dialogue-avatar server">👨‍💻</div>
+          <div class="dialogue-bubble">
+            <div class="label">朋友（服务器）</div>
+            "我能听到！那你能听到我说话吗？" <span style="color:var(--accent-green)">→ SYN+ACK</span>
+          </div>
+        </div>
+        <div class="dialogue-item">
+          <div class="dialogue-avatar client">🧑</div>
+          <div class="dialogue-bubble">
+            <div class="label">你（客户端）</div>
+            "我也能听到你！那我们开始聊吧。" <span style="color:var(--accent-orange)">→ ACK</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Why 3 times -->
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:var(--accent-red)"></span>为什么是"三次"而不是"两次"？</div>
+      <p>
+        如果只有两次握手，服务器在收到第一个 SYN 后就进入 ESTABLISHED 状态，但此时它并不知道客户端是否真的收到了自己的回复。
+        如果客户端的 SYN 因为网络延迟重复到达，服务器会误以为客户端又发起了一次连接，从而<strong style="color:var(--accent-red)">浪费资源</strong>。
+        第三次握手确保了<strong style="color:var(--fg)">双方的发送和接收能力都正常</strong>，并且双方的初始序列号都被对方确认。
+      </p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ===== SECTION 3: FOUR-WAY WAVE ===== -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon green">👋</div>
+      <div>
+        <h2>四次挥手（Four-Way Handshake）</h2>
+        <div class="subtitle">断开 TCP 连接的完整过程</div>
+      </div>
+    </div>
+
+    <!-- Diagram -->
+    <div class="diagram-wrapper">
+      <svg viewBox="0 0 700 520" width="700" height="520" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrowRed" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626"/>
+          </marker>
+          <marker id="arrowGreen2" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#16a34a"/>
+          </marker>
+          <marker id="arrowPurple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#7c3aed"/>
+          </marker>
+          <marker id="arrowCyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#0891b2"/>
+          </marker>
+        </defs>
+        <rect width="700" height="520" fill="url(#grid)"/>
+
+        <text x="350" y="30" text-anchor="middle" fill="#9ca3af" font-size="13" font-family="'JetBrains Mono', monospace">TCP Four-Way Teardown</text>
+
+        <!-- Client -->
+        <rect x="100" y="50" width="140" height="40" rx="10" fill="rgba(37,99,235,0.06)" stroke="rgba(37,99,235,0.2)" stroke-width="1"/>
+        <text x="170" y="75" text-anchor="middle" fill="#2563eb" font-size="15" font-weight="700" font-family="'Noto Sans SC', sans-serif">客户端 (Client)</text>
+
+        <!-- Server -->
+        <rect x="460" y="50" width="140" height="40" rx="10" fill="rgba(22,163,74,0.06)" stroke="rgba(22,163,74,0.2)" stroke-width="1"/>
+        <text x="530" y="75" text-anchor="middle" fill="#16a34a" font-size="15" font-weight="700" font-family="'Noto Sans SC', sans-serif">服务器 (Server)</text>
+
+        <!-- Timelines -->
+        <line x1="170" y1="100" x2="170" y2="500" stroke="rgba(37,99,235,0.15)" stroke-width="2" stroke-dasharray="4 4"/>
+        <line x1="530" y1="100" x2="530" y2="500" stroke="rgba(22,163,74,0.15)" stroke-width="2" stroke-dasharray="4 4"/>
+
+        <!-- State labels - Client -->
+        <rect x="42" y="108" width="88" height="26" rx="6" fill="rgba(22,163,74,0.06)" stroke="rgba(22,163,74,0.15)" stroke-width="1"/>
+        <text x="86" y="126" text-anchor="middle" fill="#16a34a" font-size="10" font-family="'JetBrains Mono', monospace">ESTABLISHED</text>
+
+        <rect x="42" y="178" width="88" height="26" rx="6" fill="rgba(220,38,38,0.06)" stroke="rgba(220,38,38,0.15)" stroke-width="1"/>
+        <text x="86" y="196" text-anchor="middle" fill="#dc2626" font-size="10" font-family="'JetBrains Mono', monospace">FIN_WAIT_1</text>
+
+        <rect x="42" y="278" width="88" height="26" rx="6" fill="rgba(124,58,237,0.06)" stroke="rgba(124,58,237,0.15)" stroke-width="1"/>
+        <text x="86" y="296" text-anchor="middle" fill="#7c3aed" font-size="10" font-family="'JetBrains Mono', monospace">FIN_WAIT_2</text>
+
+        <rect x="42" y="418" width="88" height="26" rx="6" fill="rgba(8,145,178,0.06)" stroke="rgba(8,145,178,0.15)" stroke-width="1"/>
+        <text x="86" y="436" text-anchor="middle" fill="#0891b2" font-size="10" font-family="'JetBrains Mono', monospace">TIME_WAIT</text>
+
+        <rect x="42" y="468" width="88" height="26" rx="6" fill="rgba(156,163,175,0.08)" stroke="rgba(156,163,175,0.2)" stroke-width="1"/>
+        <text x="86" y="486" text-anchor="middle" fill="#6b7280" font-size="10" font-family="'JetBrains Mono', monospace">CLOSED</text>
+
+        <!-- State labels - Server -->
+        <rect x="570" y="108" width="88" height="26" rx="6" fill="rgba(22,163,74,0.06)" stroke="rgba(22,163,74,0.15)" stroke-width="1"/>
+        <text x="614" y="126" text-anchor="middle" fill="#16a34a" font-size="10" font-family="'JetBrains Mono', monospace">ESTABLISHED</text>
+
+        <rect x="570" y="228" width="88" height="26" rx="6" fill="rgba(22,163,74,0.06)" stroke="rgba(22,163,74,0.15)" stroke-width="1"/>
+        <text x="614" y="246" text-anchor="middle" fill="#16a34a" font-size="10" font-family="'JetBrains Mono', monospace">CLOSE_WAIT</text>
+
+        <rect x="570" y="348" width="88" height="26" rx="6" fill="rgba(220,38,38,0.06)" stroke="rgba(220,38,38,0.15)" stroke-width="1"/>
+        <text x="614" y="366" text-anchor="middle" fill="#dc2626" font-size="10" font-family="'JetBrains Mono', monospace">LAST_ACK</text>
+
+        <rect x="570" y="448" width="88" height="26" rx="6" fill="rgba(156,163,175,0.08)" stroke="rgba(156,163,175,0.2)" stroke-width="1"/>
+        <text x="614" y="466" text-anchor="middle" fill="#6b7280" font-size="10" font-family="'JetBrains Mono', monospace">CLOSED</text>
+
+        <!-- Step 1: FIN -->
+        <line x1="185" y1="160" x2="515" y2="160" stroke="#dc2626" stroke-width="2" marker-end="url(#arrowRed)" class="arrow-animate"/>
+        <rect x="280" y="137" width="140" height="36" rx="8" fill="rgba(220,38,38,0.06)" stroke="rgba(220,38,38,0.2)" stroke-width="1"/>
+        <text x="350" y="152" text-anchor="middle" fill="#dc2626" font-size="11" font-weight="600" font-family="'JetBrains Mono', monospace">FIN</text>
+        <text x="350" y="167" text-anchor="middle" fill="#6b7280" font-size="10" font-family="'JetBrains Mono', monospace">seq = m</text>
+        <circle cx="170" cy="160" r="5" fill="#dc2626" class="pulse-dot"/>
+        <text x="350" y="132" text-anchor="middle" fill="rgba(0,0,0,0.25)" font-size="11" font-weight="600">① 第一次挥手</text>
+
+        <!-- Step 2: ACK -->
+        <line x1="515" y1="250" x2="185" y2="250" stroke="#16a34a" stroke-width="2" marker-end="url(#arrowGreen2)" class="arrow-animate"/>
+        <rect x="280" y="227" width="140" height="36" rx="8" fill="rgba(22,163,74,0.06)" stroke="rgba(22,163,74,0.2)" stroke-width="1"/>
+        <text x="350" y="242" text-anchor="middle" fill="#16a34a" font-size="11" font-weight="600" font-family="'JetBrains Mono', monospace">ACK</text>
+        <text x="350" y="257" text-anchor="middle" fill="#6b7280" font-size="10" font-family="'JetBrains Mono', monospace">ack = m+1</text>
+        <circle cx="530" cy="250" r="5" fill="#16a34a" class="pulse-dot"/>
+        <text x="350" y="222" text-anchor="middle" fill="rgba(0,0,0,0.25)" font-size="11" font-weight="600">② 第二次挥手</text>
+
+        <!-- Data transfer hint -->
+        <text x="350" y="295" text-anchor="middle" fill="rgba(0,0,0,0.15)" font-size="11" font-style="italic">← 服务器可能仍在发送数据 →</text>
+
+        <!-- Step 3: FIN -->
+        <line x1="515" y1="340" x2="185" y2="340" stroke="#7c3aed" stroke-width="2" marker-end="url(#arrowPurple)" class="arrow-animate"/>
+        <rect x="280" y="317" width="140" height="36" rx="8" fill="rgba(124,58,237,0.06)" stroke="rgba(124,58,237,0.2)" stroke-width="1"/>
+        <text x="350" y="332" text-anchor="middle" fill="#7c3aed" font-size="11" font-weight="600" font-family="'JetBrains Mono', monospace">FIN</text>
+        <text x="350" y="347" text-anchor="middle" fill="#6b7280" font-size="10" font-family="'JetBrains Mono', monospace">seq = n</text>
+        <circle cx="530" cy="340" r="5" fill="#7c3aed" class="pulse-dot"/>
+        <text x="350" y="312" text-anchor="middle" fill="rgba(0,0,0,0.25)" font-size="11" font-weight="600">③ 第三次挥手</text>
+
+        <!-- Step 4: ACK -->
+        <line x1="185" y1="430" x2="515" y2="430" stroke="#0891b2" stroke-width="2" marker-end="url(#arrowCyan)" class="arrow-animate"/>
+        <rect x="280" y="407" width="140" height="36" rx="8" fill="rgba(8,145,178,0.06)" stroke="rgba(8,145,178,0.2)" stroke-width="1"/>
+        <text x="350" y="422" text-anchor="middle" fill="#0891b2" font-size="11" font-weight="600" font-family="'JetBrains Mono', monospace">ACK</text>
+        <text x="350" y="437" text-anchor="middle" fill="#6b7280" font-size="10" font-family="'JetBrains Mono', monospace">ack = n+1</text>
+        <circle cx="170" cy="430" r="5" fill="#0891b2" class="pulse-dot"/>
+        <text x="350" y="402" text-anchor="middle" fill="rgba(0,0,0,0.25)" font-size="11" font-weight="600">④ 第四次挥手</text>
+
+        <!-- TIME_WAIT note -->
+        <rect x="280" y="460" width="140" height="28" rx="8" fill="rgba(8,145,178,0.06)" stroke="rgba(8,145,178,0.2)" stroke-width="1"/>
+        <text x="350" y="479" text-anchor="middle" fill="#0891b2" font-size="10" font-family="'JetBrains Mono', monospace">等待 2MSL 后关闭</text>
+      </svg>
+    </div>
+
+    <!-- Step explanations -->
+    <div class="steps-grid">
+      <div class="step-card red">
+        <div class="step-num red">①</div>
+        <div class="step-content">
+          <h4 style="color:var(--accent-red)">第一次挥手：客户端发送 FIN</h4>
+          <p>
+            客户端数据发送完毕，想要关闭连接，发送一个 <strong style="color:var(--fg)">FIN（结束）</strong>报文段，携带序列号 <strong style="color:var(--fg)">seq = m</strong>。
+            此时客户端进入 <code style="color:var(--accent-red)">FIN_WAIT_1</code> 状态，意思是"我说完了，等你确认"。
+            <strong style="color:var(--fg)">注意：客户端发送 FIN 后，仍然可以接收服务器发来的数据。</strong>
+          </p>
+          <span class="packet-tag fin">FIN = 1, seq = m</span>
+        </div>
+      </div>
+
+      <div class="step-card green">
+        <div class="step-num green">②</div>
+        <div class="step-content">
+          <h4 style="color:var(--accent-green)">第二次挥手：服务器回复 ACK</h4>
+          <p>
+            服务器收到 FIN 后，回复一个 <strong style="color:var(--fg)">ACK</strong> 报文，确认号 <strong style="color:var(--fg)">ack = m+1</strong>。
+            此时服务器进入 <code style="color:var(--accent-green)">CLOSE_WAIT</code> 状态，客户端收到后进入 <code style="color:var(--accent-purple)">FIN_WAIT_2</code> 状态。
+            <strong style="color:var(--fg)">这一步只是确认收到了客户端的关闭请求，服务器可能还有数据没发完！</strong>所以 TCP 是"半关闭"的——客户端不再发送数据，但服务器还可以继续发。
+          </p>
+          <span class="packet-tag ack">ACK = 1, ack = m+1</span>
+        </div>
+      </div>
+
+      <div class="step-card purple">
+        <div class="step-num purple">③</div>
+        <div class="step-content">
+          <h4 style="color:var(--accent-purple)">第三次挥手：服务器发送 FIN</h4>
+          <p>
+            服务器数据也发送完毕了，发送自己的 <strong style="color:var(--fg)">FIN</strong> 报文段，携带序列号 <strong style="color:var(--fg)">seq = n</strong>。
+            服务器进入 <code style="color:var(--accent-red)">LAST_ACK</code> 状态，意思是"我也说完了，等你最后确认"。
+          </p>
+          <span class="packet-tag fin">FIN = 1, ACK = 1, seq = n, ack = m+1</span>
+        </div>
+      </div>
+
+      <div class="step-card" style="">
+        <div class="step-num" style="background:rgba(8,145,178,0.08);color:var(--accent-cyan)">④</div>
+        <div class="step-content">
+          <h4 style="color:var(--accent-cyan)">第四次挥手：客户端回复 ACK</h4>
+          <p>
+            客户端收到服务器的 FIN 后，发送最后的 <strong style="color:var(--fg)">ACK</strong> 报文，确认号 <strong style="color:var(--fg)">ack = n+1</strong>。
+            客户端进入 <code style="color:var(--accent-cyan)">TIME_WAIT</code> 状态，等待 <strong style="color:var(--fg)">2MSL（最大报文段生存时间，通常 2 分钟）</strong>后才能真正关闭。
+            服务器收到 ACK 后直接进入 <code style="color:#6b7280">CLOSED</code> 状态。
+          </p>
+          <span class="packet-tag ack">ACK = 1, seq = m+1, ack = n+1</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analogy -->
+    <div class="analogy-box">
+      <h3>📞 生活类比：挂电话</h3>
+      <p>想象你和朋友通电话，聊完了要挂断：</p>
+      <div class="dialogue">
+        <div class="dialogue-item">
+          <div class="dialogue-avatar client">🧑</div>
+          <div class="dialogue-bubble">
+            <div class="label">你（客户端）</div>
+            "我说完了，准备挂了。" <span style="color:var(--accent-red)">→ FIN</span>
+          </div>
+        </div>
+        <div class="dialogue-item">
+          <div class="dialogue-avatar server">👨‍💻</div>
+          <div class="dialogue-bubble">
+            <div class="label">朋友（服务器）</div>
+            "好的，我知道了。等一下，我还有最后一句要说……" <span style="color:var(--accent-green)">→ ACK（半关闭）</span>
+          </div>
+        </div>
+        <div class="dialogue-item">
+          <div class="dialogue-avatar server">👨‍💻</div>
+          <div class="dialogue-bubble">
+            <div class="label">朋友（服务器）</div>
+            "好了，我也说完了，可以挂了。" <span style="color:var(--accent-purple)">→ FIN</span>
+          </div>
+        </div>
+        <div class="dialogue-item">
+          <div class="dialogue-avatar client">🧑</div>
+          <div class="dialogue-bubble">
+            <div class="label">你（客户端）</div>
+            "好的，再见！" <span style="color:var(--accent-cyan)">→ ACK</span>
+            <div style="color:var(--fg-muted);font-size:12px;margin-top:4px">（你等了一会儿确认对方真的挂了，才放下电话）</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Why 4 times -->
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:var(--accent-purple)"></span>为什么挥手是"四次"而不是"三次"？</div>
+      <p>
+        因为 TCP 是<strong style="color:var(--fg)">全双工通信</strong>——双方都可以同时发送和接收数据。
+        当客户端发送 FIN 时，只是表示"我不再发送数据了"，但服务器可能还有数据要发。
+        所以服务器需要先 ACK 确认，等自己的数据也发完后，再单独发一个 FIN。
+        这就是<strong style="color:var(--fg)">第二次和第三次挥手不能合并的原因</strong>——中间可能有一个数据传输的过程。
+      </p>
+    </div>
+
+    <!-- TIME_WAIT -->
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:var(--accent-cyan)"></span>为什么要有 TIME_WAIT 状态？</div>
+      <p>
+        客户端在发送最后一个 ACK 后，不直接关闭，而是等待 <strong style="color:var(--fg)">2MSL</strong>（约 2 分钟）。原因有两个：
+      </p>
+      <p style="margin-top:8px">
+        <strong style="color:var(--fg)">1. 确保最后一个 ACK 到达服务器。</strong>如果 ACK 丢失，服务器会重发 FIN，客户端可以重新发送 ACK。
+      </p>
+      <p style="margin-top:4px">
+        <strong style="color:var(--fg)">2. 让网络中残留的报文段过期。</strong>等待 2MSL 后，本次连接产生的所有报文都会从网络中消失，避免影响新连接。
+      </p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ===== SECTION 4: STATE DIAGRAM ===== -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon orange">📊</div>
+      <div>
+        <h2>状态变化总览</h2>
+        <div class="subtitle">完整的状态转换流程</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:var(--accent-blue)"></span>三次握手 — 状态变化</div>
+      <div class="state-flow">
+        <div class="state-node" style="background:rgba(156,163,175,0.08);border-color:rgba(156,163,175,0.25);color:#6b7280">CLOSED</div>
+        <span class="state-arrow">→</span>
+        <div class="state-node" style="background:rgba(37,99,235,0.06);border-color:rgba(37,99,235,0.25);color:#2563eb">SYN_SENT</div>
+        <span class="state-arrow">→</span>
+        <div class="state-node" style="background:rgba(22,163,74,0.06);border-color:rgba(22,163,74,0.25);color:#16a34a">ESTABLISHED</div>
+      </div>
+      <p style="text-align:center;margin-top:8px;font-size:13px;color:var(--fg-muted)">客户端状态变化</p>
+      <div class="state-flow" style="margin-top:16px">
+        <div class="state-node" style="background:rgba(217,119,6,0.06);border-color:rgba(217,119,6,0.25);color:#d97706">LISTEN</div>
+        <span class="state-arrow">→</span>
+        <div class="state-node" style="background:rgba(217,119,6,0.06);border-color:rgba(217,119,6,0.25);color:#d97706">SYN_RCVD</div>
+        <span class="state-arrow">→</span>
+        <div class="state-node" style="background:rgba(22,163,74,0.06);border-color:rgba(22,163,74,0.25);color:#16a34a">ESTABLISHED</div>
+      </div>
+      <p style="text-align:center;margin-top:8px;font-size:13px;color:var(--fg-muted)">服务器状态变化</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:var(--accent-green)"></span>四次挥手 — 状态变化</div>
+      <div class="state-flow">
+        <div class="state-node" style="background:rgba(22,163,74,0.06);border-color:rgba(22,163,74,0.25);color:#16a34a">ESTABLISHED</div>
+        <span class="state-arrow">→</span>
+        <div class="state-node" style="background:rgba(220,38,38,0.06);border-color:rgba(220,38,38,0.25);color:#dc2626">FIN_WAIT_1</div>
+        <span class="state-arrow">→</span>
+        <div class="state-node" style="background:rgba(124,58,237,0.06);border-color:rgba(124,58,237,0.25);color:#7c3aed">FIN_WAIT_2</div>
+        <span class="state-arrow">→</span>
+        <div class="state-node" style="background:rgba(8,145,178,0.06);border-color:rgba(8,145,178,0.25);color:#0891b2">TIME_WAIT</div>
+        <span class="state-arrow">→</span>
+        <div class="state-node" style="background:rgba(156,163,175,0.08);border-color:rgba(156,163,175,0.25);color:#6b7280">CLOSED</div>
+      </div>
+      <p style="text-align:center;margin-top:8px;font-size:13px;color:var(--fg-muted)">客户端状态变化</p>
+      <div class="state-flow" style="margin-top:16px">
+        <div class="state-node" style="background:rgba(22,163,74,0.06);border-color:rgba(22,163,74,0.25);color:#16a34a">ESTABLISHED</div>
+        <span class="state-arrow">→</span>
+        <div class="state-node" style="background:rgba(22,163,74,0.06);border-color:rgba(22,163,74,0.25);color:#16a34a">CLOSE_WAIT</div>
+        <span class="state-arrow">→</span>
+        <div class="state-node" style="background:rgba(220,38,38,0.06);border-color:rgba(220,38,38,0.25);color:#dc2626">LAST_ACK</div>
+        <span class="state-arrow">→</span>
+        <div class="state-node" style="background:rgba(156,163,175,0.08);border-color:rgba(156,163,175,0.25);color:#6b7280">CLOSED</div>
+      </div>
+      <p style="text-align:center;margin-top:8px;font-size:13px;color:var(--fg-muted)">服务器状态变化</p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ===== SECTION 5: COMPARISON ===== -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon purple">⚡</div>
+      <div>
+        <h2>对比总结</h2>
+        <div class="subtitle">三次握手 vs 四次挥手</div>
+      </div>
+    </div>
+
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>对比项</th>
+          <th style="color:var(--accent-blue)">三次握手</th>
+          <th style="color:var(--accent-green)">四次挥手</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="color:var(--fg);font-weight:500">目的</td>
+          <td>建立连接</td>
+          <td>断开连接</td>
+        </tr>
+        <tr>
+          <td style="color:var(--fg);font-weight:500">次数</td>
+          <td>3 次</td>
+          <td>4 次</td>
+        </tr>
+        <tr>
+          <td style="color:var(--fg);font-weight:500">发起方</td>
+          <td>客户端</td>
+          <td>任意一方均可</td>
+        </tr>
+        <tr>
+          <td style="color:var(--fg);font-weight:500">关键标志位</td>
+          <td>SYN, ACK</td>
+          <td>FIN, ACK</td>
+        </tr>
+        <tr>
+          <td style="color:var(--fg);font-weight:500">为什么是这个次数</td>
+          <td>双方都需要确认对方的收发能力</td>
+          <td>全双工，双方独立关闭各自的发送通道</td>
+        </tr>
+        <tr>
+          <td style="color:var(--fg);font-weight:500">特殊状态</td>
+          <td>SYN_SENT, SYN_RCVD</td>
+          <td>TIME_WAIT（等待 2MSL）</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    TCP 三次握手 & 四次挥手 · 图文详解
+  </div>
+
+</div>
+
+<script>
+  const sections = document.querySelectorAll('.section');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.1 });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>
