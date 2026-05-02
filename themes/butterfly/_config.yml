@@ -12,7 +12,7 @@ menu:
 
 # 代码块设置
 code_blocks:
-  theme: dracula
+  theme: default
   macStyle: true
   height_limit: 400
   word_wrap: false
