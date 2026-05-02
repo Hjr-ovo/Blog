@@ -50,6 +50,8 @@ jobs:
 
       - name: Install Butterfly plugins
         run: |
+          npm install hexo-renderer-pug --save
+          npm install hexo-renderer-stylus --save
           npm install hexo-wordcount --save
           npm install hexo-generator-search --save
           npm install hexo-generator-feed --save
