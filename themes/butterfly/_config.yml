@@ -1,5 +1,5 @@
 # ==========================================
-# Butterfly 主题配置 - 暗黑科技风
+# Butterfly 主题配置 - 简约清爽风
 # ==========================================
 
 # 导航菜单
@@ -8,36 +8,18 @@ menu:
   归档: /archives/ || fas fa-archive
   标签: /tags/ || fas fa-tags
   分类: /categories/ || fas fa-folder-open
-  关于: /about/ || fas fa-heart
-
-# 代码块设置
-code_blocks:
-  macStyle: true
-  height_limit: 400
-  word_wrap: false
-  copy: true
-  language: true
-  shrink: false
 
 # 搜索
 search:
   enable: true
   type: local
-  local_search:
-    preload: false
-    top_n_per_article: 1
-    unescape: false
-
-# 主页设置
-index_site_info_top:
-  enable: true
 
 # 头像
 avatar:
   img: /images/avatar.png
   effect: true
 
-# 网站副标题（打字机效果）
+# 副标题（打字机效果）
 subtitle:
   enable: true
   effect: true
@@ -47,92 +29,41 @@ subtitle:
     - "网络安全学习者"
     - "渗透测试入门中"
     - "记录成长之路"
-    - "NUPT 网络工程"
 
 # 社交链接
 social_contact:
   enable: true
   links:
     github: https://github.com/Hjr-ovo || fab fa-github
-    email: mailto:your_email@example.com || fas fa-envelope
-
-# 社交图标（右上角）
-social:
-  fab fa-github: https://github.com/Hjr-ovo || Github || '#24292e'
 
 # 首页文章卡片
 home_article:
   style: 1
   class: stagger
-  description: true
-  position: left
-  readmode: true
-  pagination: true
-
-# 文章元信息
-post_meta:
-  date_type: both
-  date_format: relative
-  categories: true
-  tags: true
-  label: true
 
 # 文章目录
 toc:
   post: true
-  page: false
   number: true
   expand: false
-  style_simple: false
-  scroll_percent: true
 
 # 版权声明
 copyright:
   enable: true
-  decode: false
   license: CC BY-NC-SA 4.0
   license_url: https://creativecommons.org/licenses/by-nc-sa/4.0/
-
-# 文章编辑链接
-post_edit:
-  enable: false
 
 # 相关文章
 related_post:
   enable: true
   limit: 6
-  date_type: created
 
-# 最新评论
-newest_comments:
-  enable: true
-  sort_order: hot
-  limit: 5
-  layout: popper
-  avatar: true
-
-# 页脚设置
+# 页脚
 footer:
   owner:
     enable: true
     since: 2026
-  custom_text:
   copyright: true
-
-# 暗黑模式
-darkmode:
-  enable: true
-  button: true
-  autoChangeMode: false
-  startNight: '22:00'
-  endNight: '06:00'
-
-# 字数统计
-wordcount:
-  enable: false
-  post_wordcount: true
-  min2read: true
-  total_wordcount: true
 
 # 访问统计
 busuanzi:
@@ -144,29 +75,6 @@ busuanzi:
 lazyload:
   enable: true
 
-# 图片放大
-fancybox:
-  enable: true
-  js: https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.min.js
-  css: https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.min.css
-
-# 分享
-share:
-  enable: true
-  type: sharejs
-
 # 评论（暂时关闭）
 comments:
   use: false
-
-# CDN
-CDN:
-  css:
-  js:
-
-# 自定义 CSS 注入
-inject:
-  head:
-  footer:
-
-
